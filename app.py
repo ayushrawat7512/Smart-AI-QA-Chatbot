@@ -19,7 +19,8 @@ if not API_KEY:
 
 genai.configure(api_key=API_KEY)
 
-model = genai.GenerativeModel("gemini-pro")
+# Latest working model
+model = genai.GenerativeModel("gemini-1.5-flash-latest")
 
 # ---------------- SESSION STATE ----------------
 if "messages" not in st.session_state:
@@ -30,7 +31,8 @@ st.sidebar.title("Chat History")
 
 for msg in st.session_state.messages:
     if msg["role"] == "user":
-        st.sidebar.write("💬", msg["content"][:40])
+        preview = msg["content"][:40]
+        st.sidebar.write("💬", preview)
 
 if st.sidebar.button("Clear Chat"):
     st.session_state.messages = []
@@ -56,7 +58,6 @@ def get_html(url):
 
 
 def extract_inputs(html):
-
     soup = BeautifulSoup(html, "html.parser")
 
     inputs = []
@@ -72,6 +73,32 @@ def extract_inputs(html):
         })
 
     return inputs
+
+
+def is_testing_question(text):
+
+    prompt = f"""
+You are a classifier.
+
+Check if the following question is related to software testing, QA, automation testing, manual testing, API testing, selenium, test cases, bug reports.
+
+If YES return only: YES
+If NO return only: NO
+
+Question: {text}
+"""
+
+    try:
+        result = model.generate_content(prompt)
+        answer = result.text.strip().upper()
+
+        if "YES" in answer:
+            return True
+        else:
+            return False
+
+    except:
+        return True
 
 
 # ---------------- DISPLAY CHAT ----------------
@@ -107,6 +134,7 @@ if user_input:
 
         with st.spinner("Processing..."):
 
+            # URL CASE
             if re.match(r'https?://', user_input):
 
                 html = get_html(user_input)
@@ -151,21 +179,35 @@ Include:
 
             else:
 
-                prompt = f"""
-You are a software testing expert.
+                # CHECK QA RELATED
+                if not is_testing_question(user_input):
+
+                    msg = "⚠️ This chatbot only answers Software Testing related questions. Your query is out of scope."
+
+                    st.warning(msg)
+
+                    st.session_state.messages.append({
+                        "role": "assistant",
+                        "content": msg
+                    })
+
+                else:
+
+                    prompt = f"""
+You are a senior software testing expert.
 
 Answer the following QA question clearly:
 
 {user_input}
 """
 
-                answer = ask_ai(prompt)
+                    answer = ask_ai(prompt)
 
-                st.markdown(answer)
+                    st.markdown(answer)
 
-                st.session_state.messages.append({
-                    "role": "assistant",
-                    "content": answer
-                })
+                    st.session_state.messages.append({
+                        "role": "assistant",
+                        "content": answer
+                    })
 
     st.rerun()
