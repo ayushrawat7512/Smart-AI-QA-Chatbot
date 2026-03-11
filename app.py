@@ -7,7 +7,8 @@ import google.generativeai as genai
 # Gemini API key
 genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
 
-model = genai.GenerativeModel("gemini-pro")
+
+model = genai.GenerativeModel("gemini-1.5-flash")
 
 # Page
 st.set_page_config(page_title="AI Smart QA Chatbot", layout="wide")
