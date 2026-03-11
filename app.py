@@ -4,30 +4,28 @@ import requests
 from bs4 import BeautifulSoup
 import re
 
-# -----------------------
-# PAGE CONFIG
-# -----------------------
+# ---------------- PAGE CONFIG ----------------
 st.set_page_config(page_title="AI Smart QA Tester", layout="centered")
 
 st.title("🤖 AI Smart QA Tester")
 st.write("Ask software testing questions or paste a website URL to generate test cases.")
 
-# -----------------------
-# GEMINI API
-# -----------------------
-genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
+# ---------------- GEMINI SETUP ----------------
+API_KEY = st.secrets.get("GEMINI_API_KEY")
+
+if not API_KEY:
+    st.error("Gemini API key not found. Please add it in Streamlit Secrets.")
+    st.stop()
+
+genai.configure(api_key=API_KEY)
 
 model = genai.GenerativeModel("gemini-1.5-flash")
 
-# -----------------------
-# SESSION MEMORY
-# -----------------------
+# ---------------- SESSION STATE ----------------
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
-# -----------------------
-# SIDEBAR HISTORY
-# -----------------------
+# ---------------- SIDEBAR ----------------
 st.sidebar.title("Chat History")
 
 for msg in st.session_state.messages:
@@ -38,13 +36,14 @@ if st.sidebar.button("Clear Chat"):
     st.session_state.messages = []
     st.rerun()
 
-# -----------------------
-# FUNCTIONS
-# -----------------------
+# ---------------- FUNCTIONS ----------------
 
 def ask_ai(prompt):
-    response = model.generate_content(prompt)
-    return response.text
+    try:
+        response = model.generate_content(prompt)
+        return response.text
+    except Exception as e:
+        return f"AI Error: {str(e)}"
 
 
 def get_html(url):
@@ -57,10 +56,13 @@ def get_html(url):
 
 
 def extract_inputs(html):
+
     soup = BeautifulSoup(html, "html.parser")
+
     inputs = []
 
     for tag in soup.find_all(["input","textarea","select"]):
+
         name = tag.get("name") or tag.get("id") or "N/A"
         typ = tag.get("type") or tag.name
 
@@ -72,9 +74,8 @@ def extract_inputs(html):
     return inputs
 
 
-# -----------------------
-# DISPLAY CHAT
-# -----------------------
+# ---------------- DISPLAY CHAT ----------------
+
 for msg in st.session_state.messages:
 
     with st.chat_message(msg["role"]):
@@ -87,9 +88,8 @@ for msg in st.session_state.messages:
         if msg.get("test_cases"):
             st.markdown(msg["test_cases"])
 
-# -----------------------
-# CHAT INPUT
-# -----------------------
+
+# ---------------- USER INPUT ----------------
 
 user_input = st.chat_input("Ask QA question or paste website URL...")
 
@@ -122,15 +122,15 @@ if user_input:
                     prompt = f"""
 You are a senior QA engineer.
 
-Generate test cases for these form fields:
+Generate detailed test cases for these fields:
 
 {inputs}
 
 Include:
-Positive test cases
-Negative test cases
-Boundary value cases
-Edge cases
+- Positive test cases
+- Negative test cases
+- Boundary value cases
+- Edge cases
 """
 
                     answer = ask_ai(prompt)
@@ -154,7 +154,7 @@ Edge cases
                 prompt = f"""
 You are a software testing expert.
 
-Answer this question clearly:
+Answer the following QA question clearly:
 
 {user_input}
 """
