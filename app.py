@@ -1,28 +1,28 @@
 import streamlit as st
-import google.generativeai as genai
 import requests
 from bs4 import BeautifulSoup
 import re
+import google.generativeai as genai
 
 # ---------------- PAGE CONFIG ----------------
 st.set_page_config(page_title="AI Smart QA Tester", layout="centered")
 
 st.title("🤖 AI Smart QA Tester")
-st.write("Ask software testing questions or paste a website URL to generate test cases.")
+st.write("Ask Software Testing questions or paste a website URL to generate test cases.")
 
-# ---------------- GEMINI SETUP ----------------
+# ---------------- GEMINI API ----------------
 API_KEY = st.secrets.get("GEMINI_API_KEY")
 
 if not API_KEY:
-    st.error("Gemini API key not found. Please add it in Streamlit Secrets.")
+    st.error("Gemini API Key missing. Add it in Streamlit Secrets.")
     st.stop()
 
 genai.configure(api_key=API_KEY)
 
-# Latest working model
-model = genai.GenerativeModel("gemini-1.5-flash-latest")
+# SAFE MODEL
+model = genai.GenerativeModel("gemini-1.0-pro")
 
-# ---------------- SESSION STATE ----------------
+# ---------------- SESSION ----------------
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
@@ -31,8 +31,7 @@ st.sidebar.title("Chat History")
 
 for msg in st.session_state.messages:
     if msg["role"] == "user":
-        preview = msg["content"][:40]
-        st.sidebar.write("💬", preview)
+        st.sidebar.write("💬", msg["content"][:40])
 
 if st.sidebar.button("Clear Chat"):
     st.session_state.messages = []
@@ -73,32 +72,6 @@ def extract_inputs(html):
         })
 
     return inputs
-
-
-def is_testing_question(text):
-
-    prompt = f"""
-You are a classifier.
-
-Check if the following question is related to software testing, QA, automation testing, manual testing, API testing, selenium, test cases, bug reports.
-
-If YES return only: YES
-If NO return only: NO
-
-Question: {text}
-"""
-
-    try:
-        result = model.generate_content(prompt)
-        answer = result.text.strip().upper()
-
-        if "YES" in answer:
-            return True
-        else:
-            return False
-
-    except:
-        return True
 
 
 # ---------------- DISPLAY CHAT ----------------
@@ -150,15 +123,15 @@ if user_input:
                     prompt = f"""
 You are a senior QA engineer.
 
-Generate detailed test cases for these fields:
+Generate test cases for these fields:
 
 {inputs}
 
 Include:
-- Positive test cases
-- Negative test cases
-- Boundary value cases
-- Edge cases
+Positive test cases
+Negative test cases
+Boundary value cases
+Edge cases
 """
 
                     answer = ask_ai(prompt)
@@ -179,35 +152,21 @@ Include:
 
             else:
 
-                # CHECK QA RELATED
-                if not is_testing_question(user_input):
-
-                    msg = "⚠️ This chatbot only answers Software Testing related questions. Your query is out of scope."
-
-                    st.warning(msg)
-
-                    st.session_state.messages.append({
-                        "role": "assistant",
-                        "content": msg
-                    })
-
-                else:
-
-                    prompt = f"""
-You are a senior software testing expert.
+                prompt = f"""
+You are a software testing expert.
 
 Answer the following QA question clearly:
 
 {user_input}
 """
 
-                    answer = ask_ai(prompt)
+                answer = ask_ai(prompt)
 
-                    st.markdown(answer)
+                st.markdown(answer)
 
-                    st.session_state.messages.append({
-                        "role": "assistant",
-                        "content": answer
-                    })
+                st.session_state.messages.append({
+                    "role": "assistant",
+                    "content": answer
+                })
 
     st.rerun()
