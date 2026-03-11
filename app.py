@@ -1,65 +1,83 @@
 import streamlit as st
+import google.generativeai as genai
 import requests
 from bs4 import BeautifulSoup
 import re
-import google.generativeai as genai
 
-# Gemini API key
+# -----------------------------
+# Page config
+# -----------------------------
+st.set_page_config(page_title="AI Smart QA Tester", layout="centered")
+
+st.title("🤖 AI Smart QA Tester")
+st.write("Ask Software Testing questions or paste a website URL to generate test cases.")
+
+# -----------------------------
+# Gemini API setup
+# -----------------------------
 genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
-
 
 model = genai.GenerativeModel("gemini-1.5-flash")
 
-# Page
-st.set_page_config(page_title="AI Smart QA Chatbot", layout="wide")
-
-st.title("🤖 AI Smart QA Chatbot")
-
-# Session memory
+# -----------------------------
+# Chat memory
+# -----------------------------
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
-# Sidebar
+# -----------------------------
+# Sidebar History
+# -----------------------------
 st.sidebar.title("Chat History")
 
-for m in st.session_state.messages:
-    if m["role"] == "user":
-        preview = m["content"][:50]
+for msg in st.session_state.messages:
+    if msg["role"] == "user":
+        preview = msg["content"][:40]
         st.sidebar.write("💬", preview)
 
 if st.sidebar.button("Clear Chat"):
     st.session_state.messages = []
     st.rerun()
 
-# Get website html
+# -----------------------------
+# Functions
+# -----------------------------
+
+def ask_ai(prompt):
+    response = model.generate_content(prompt)
+    return response.text
+
+
 def get_html(url):
     try:
-        r = requests.get(url, timeout=10)
+        headers = {"User-Agent": "Mozilla/5.0"}
+        r = requests.get(url, headers=headers, timeout=10)
         return r.text
     except:
         return None
 
-# Extract inputs
+
 def extract_inputs(html):
     soup = BeautifulSoup(html, "html.parser")
+
     inputs = []
 
-    for tag in soup.find_all(["input","textarea","select"]):
+    for tag in soup.find_all(["input", "textarea", "select"]):
+
         name = tag.get("name") or tag.get("id") or "N/A"
         typ = tag.get("type") or tag.name
-        inputs.append({"Field":name,"Type":typ})
+
+        inputs.append({
+            "Field": name,
+            "Type": typ
+        })
 
     return inputs
 
-# Gemini answer
-def ask_ai(prompt):
 
-    response = model.generate_content(prompt)
-
-    return response.text
-
-
+# -----------------------------
 # Show chat history
+# -----------------------------
 for msg in st.session_state.messages:
 
     with st.chat_message(msg["role"]):
@@ -69,18 +87,19 @@ for msg in st.session_state.messages:
         if msg.get("table"):
             st.table(msg["table"])
 
-        if msg.get("testcases"):
-            st.markdown(msg["testcases"])
+        if msg.get("test_cases"):
+            st.markdown(msg["test_cases"])
 
-
+# -----------------------------
 # Chat input
-user_input = st.chat_input("Ask QA question or paste URL")
+# -----------------------------
+user_input = st.chat_input("Ask QA question or paste website URL...")
 
 if user_input:
 
     st.session_state.messages.append({
-        "role":"user",
-        "content":user_input
+        "role": "user",
+        "content": user_input
     })
 
     with st.chat_message("user"):
@@ -88,8 +107,9 @@ if user_input:
 
     with st.chat_message("assistant"):
 
-        with st.spinner("Thinking..."):
+        with st.spinner("Processing..."):
 
+            # URL detect
             if re.match(r'https?://', user_input):
 
                 html = get_html(user_input)
@@ -98,55 +118,58 @@ if user_input:
 
                     inputs = extract_inputs(html)
 
+                    st.write("### Detected Input Fields")
+
                     st.table(inputs)
 
                     prompt = f"""
 You are a senior QA engineer.
 
-Generate detailed test cases for these input fields.
+Generate detailed test cases for these form fields:
 
-Fields:
 {inputs}
 
 Include:
-Positive cases
-Negative cases
-Boundary value
-Edge cases
+- Positive test cases
+- Negative test cases
+- Boundary value cases
+- Edge cases
 """
 
                     answer = ask_ai(prompt)
 
+                    st.write("### AI Generated Test Cases")
+
                     st.markdown(answer)
 
                     st.session_state.messages.append({
-                        "role":"assistant",
-                        "content":"Detected form fields",
-                        "table":inputs,
-                        "testcases":answer
+                        "role": "assistant",
+                        "content": "Detected form fields and generated test cases.",
+                        "table": inputs,
+                        "test_cases": answer
                     })
 
                 else:
 
-                    st.error("Could not access website")
+                    st.error("Could not access this website.")
 
             else:
 
-                prompt=f"""
+                prompt = f"""
 You are a software testing expert.
 
-Answer this QA question clearly:
+Answer the following question clearly:
 
 {user_input}
 """
 
-                answer=ask_ai(prompt)
+                answer = ask_ai(prompt)
 
                 st.markdown(answer)
 
                 st.session_state.messages.append({
-                    "role":"assistant",
-                    "content":answer
+                    "role": "assistant",
+                    "content": answer
                 })
 
     st.rerun()
